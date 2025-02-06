@@ -16,8 +16,6 @@ import {
 import { useEnv } from '@/hooks/useEnv';
 import { useMemo } from 'react';
 
-
-
 export const Providers = ({ children }: { children: React.ReactNode }) => {
     const { rainbowAppName, rainbowProjectId } = useEnv();
 
