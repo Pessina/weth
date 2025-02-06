@@ -2,7 +2,6 @@
 
 import { useWETHContract } from "@/contracts/weth/useWETHContract";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { formatEther } from "viem";
 import { useAccount, useBalance } from "wagmi";
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -18,6 +17,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Balance } from "@/components/Balance"
 
 const formSchema = z.object({
   amount: z.string().min(1, "Amount is required")
@@ -63,14 +63,8 @@ export default function Home() {
           <CardHeader>
             <CardTitle>WETH Balance</CardTitle>
             <CardDescription className="flex flex-col gap-2">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">ETH Balance:</span>
-                <span>{isEthBalanceLoading ? "Loading..." : `${Number(formatEther(ethBalance?.value ?? 0n)).toFixed(4)} ETH`}</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">WETH Balance:</span>
-                <span>{isWETHBalanceLoading ? "Loading..." : `${Number(formatEther(wethBalance ?? 0n)).toFixed(4)} WETH`}</span>
-              </div>
+              <Balance isLoading={isEthBalanceLoading} balance={ethBalance?.value ?? 0n} label="ETH" />
+              <Balance isLoading={isWETHBalanceLoading} balance={wethBalance ?? 0n} label="WETH" />
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -112,6 +106,6 @@ export default function Home() {
           </CardContent>
         </Card>
       </div>}
-    </div>
+    </div >
   );
 }
