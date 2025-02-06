@@ -2,7 +2,7 @@
 
 import { useWETHContract } from "@/contracts/weth/useWETHContract";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { Hex, formatEther } from "viem";
+import { formatEther } from "viem";
 import { useAccount } from "wagmi";
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -25,37 +25,28 @@ const formSchema = z.object({
 
 export default function Home() {
   const { address } = useAccount();
-  const { balance, deposit, withdraw } = useWETHContract({
-    account: address as Hex,
-  });
+  const { balance, deposit, withdraw, isBalanceLoading, isWriting } = useWETHContract();
 
-  const depositForm = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       amount: "",
     },
   })
 
-  const withdrawForm = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      amount: "",
-    },
-  })
-
-  async function onDepositSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       await deposit(parseFloat(values.amount))
-      depositForm.reset()
+      form.reset()
     } catch (error) {
       console.error(error)
     }
   }
 
-  async function onWithdrawSubmit(values: z.infer<typeof formSchema>) {
+  async function onWithdraw(values: z.infer<typeof formSchema>) {
     try {
       await withdraw(parseFloat(values.amount))
-      withdrawForm.reset()
+      form.reset()
     } catch (error) {
       console.error(error)
     }
@@ -64,25 +55,24 @@ export default function Home() {
   return (
     <div className="grid grid-rows-[auto_1fr] items-center justify-items-center min-h-screen p-8 pb-20 gap-8 sm:p-20 font-[family-name:var(--font-geist-sans)]">
       <ConnectButton />
-
       {address && (
         <div className="w-full max-w-md space-y-8">
           <Card>
             <CardHeader>
               <CardTitle>WETH Balance</CardTitle>
               <CardDescription>
-                {`${formatEther(balance)} WETH`}
+                {isBalanceLoading ? "Loading..." : `${formatEther(balance ?? 0n)} WETH`}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <Form {...depositForm}>
-                <form onSubmit={depositForm.handleSubmit(onDepositSubmit)} className="space-y-4">
+              <Form {...form}>
+                <form className="space-y-4">
                   <FormField
-                    control={depositForm.control}
+                    control={form.control}
                     name="amount"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Deposit Amount</FormLabel>
+                        <FormLabel>Amount</FormLabel>
                         <FormControl>
                           <Input placeholder="0.0" {...field} />
                         </FormControl>
@@ -90,26 +80,24 @@ export default function Home() {
                       </FormItem>
                     )}
                   />
-                  <Button type="submit" className="w-full">Deposit</Button>
-                </form>
-              </Form>
-
-              <Form {...withdrawForm}>
-                <form onSubmit={withdrawForm.handleSubmit(onWithdrawSubmit)} className="space-y-4">
-                  <FormField
-                    control={withdrawForm.control}
-                    name="amount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Withdraw Amount</FormLabel>
-                        <FormControl>
-                          <Input placeholder="0.0" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  <Button type="submit" className="w-full">Withdraw</Button>
+                  <div className="flex gap-4">
+                    <Button
+                      type="button"
+                      className="flex-1"
+                      disabled={isWriting}
+                      onClick={form.handleSubmit(onSubmit)}
+                    >
+                      {"Deposit"}
+                    </Button>
+                    <Button
+                      type="button"
+                      className="flex-1"
+                      disabled={isWriting}
+                      onClick={form.handleSubmit(onWithdraw)}
+                    >
+                      {"Withdraw"}
+                    </Button>
+                  </div>
                 </form>
               </Form>
             </CardContent>

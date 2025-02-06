@@ -15,6 +15,7 @@ import {
 } from "@tanstack/react-query";
 import { useEnv } from '@/hooks/useEnv';
 import { useMemo } from 'react';
+import { Toaster } from './ui/toaster';
 
 export const Providers = ({ children }: { children: React.ReactNode }) => {
     const { rainbowAppName, rainbowProjectId } = useEnv();
@@ -33,6 +34,7 @@ export const Providers = ({ children }: { children: React.ReactNode }) => {
             <QueryClientProvider client={queryClient}>
                 <RainbowKitProvider>
                     {children}
+                    <Toaster />
                 </RainbowKitProvider>
             </QueryClientProvider>
         </WagmiProvider>
