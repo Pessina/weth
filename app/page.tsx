@@ -23,6 +23,7 @@ import Link from "next/link";
 import { parseEther, encodeFunctionData } from "viem";
 import { wethABI } from "@/contracts/weth/wethABI";
 import { contractAddresses } from "@/constants/addresses";
+import { splitAddress } from "@/lib/utils";
 
 const formSchema = z.object({
   amount: z.string().min(1, "Amount is required")
@@ -34,7 +35,7 @@ export default function Home() {
     { address }
   )
   const { wethBalance, isWETHBalanceLoading } = useWETHContract();
-  const { safeAddress, isSafeDeployed, isLoading, initiateSafeTransaction, getSafeExplorerLink, splitAddress } = useSafe();
+  const { safeAddress, isSafeDeployed, isLoading, initiateSafeTransaction, getSafeExplorerLink, initSafe } = useSafe();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -141,6 +142,19 @@ export default function Home() {
                     onClick={form.handleSubmit(onWithdraw)}
                   >
                     Withdraw
+                  </Button>
+                  <Button
+                    type="button"
+                    className="flex-1"
+                    disabled={isLoading}
+                    onClick={() => initSafe({
+                      options: {
+                        owners: [address],
+                        threshold: 1
+                      }
+                    })}
+                  >
+                    Init Safe
                   </Button>
                 </div>
               </form>
