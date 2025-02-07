@@ -11,7 +11,7 @@ import {
     FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { Hex, parseEther } from "viem"
+import { parseEther } from "viem"
 
 const wethFormSchema = z.object({
     amount: z.string().min(1, "Amount is required")
@@ -19,8 +19,8 @@ const wethFormSchema = z.object({
 
 interface WETHAmountFormProps {
     isLoading: boolean;
-    onWrap: (amount: bigint) => Promise<Hex>;
-    onUnwrap: (amount: bigint) => Promise<Hex>;
+    onWrap: (amount: bigint) => Promise<void>;
+    onUnwrap: (amount: bigint) => Promise<void>;
 }
 
 export function WETHAmountForm({ isLoading, onWrap, onUnwrap }: WETHAmountFormProps) {
@@ -57,7 +57,7 @@ export function WETHAmountForm({ isLoading, onWrap, onUnwrap }: WETHAmountFormPr
                     name="amount"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>ETH Amount</FormLabel>
+                            <FormLabel>Amount</FormLabel>
                             <FormControl>
                                 <Input
                                     placeholder="0.0"

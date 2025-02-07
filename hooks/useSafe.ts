@@ -4,11 +4,13 @@ import {
   Safe4337CreateTransactionProps,
   Safe4337Pack,
 } from "@safe-global/relay-kit";
+import SafeApiKit from "@safe-global/api-kit";
 import { useEnv } from "./useEnv";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "./use-toast";
 import { withPolling } from "@/lib/utils";
 import { Hex } from "viem";
+import { sepolia } from "viem/chains";
 
 type SafeInitOptions = {
   owners: string[];
@@ -26,6 +28,7 @@ export const useSafe = () => {
   const { data: walletClient } = useWalletClient();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [safe4337Pack, setSafe4337Pack] = useState<Safe4337Pack | null>(null);
+  const [safeApiKit, setSafeApiKit] = useState<SafeApiKit | null>(null);
   const { toast } = useToast();
 
   const getSafeExplorerLink = useCallback((address: string) => {
@@ -35,6 +38,12 @@ export const useSafe = () => {
   const initSafe = useCallback<InitSafeFn>(
     async ({ options }) => {
       if (!walletClient) throw new Error("Wallet client not found");
+
+      setSafeApiKit(
+        new SafeApiKit({
+          chainId: BigInt(sepolia.id),
+        })
+      );
 
       setSafe4337Pack(
         await Safe4337Pack.init({
@@ -68,10 +77,32 @@ export const useSafe = () => {
     enabled: !!safe4337Pack,
   });
 
+  const { data: ethBalance } = useQuery({
+    queryKey: ["ethBalance", safeAddress],
+    queryFn: async () => {
+      if (!safeAddress) return 0n;
+      return safe4337Pack?.protocolKit.getBalance();
+    },
+    enabled: !!safeAddress,
+  });
+
+  const getTxConfirmations = useCallback(
+    async ({ safeTxHash }: { safeTxHash: string }) => {
+      if (!safe4337Pack) return 0;
+      const transaction = await safeApiKit?.getTransaction(safeTxHash);
+
+      return transaction?.confirmations;
+    },
+    [safe4337Pack, safeApiKit]
+  );
+
   const initiateSafeTransaction = useCallback(
     async (
       safe4337CreateTransactionProps: Safe4337CreateTransactionProps
-    ): Promise<Hex> => {
+    ): Promise<{
+      receiptHash: string;
+      safeOperationHash: string;
+    }> => {
       setIsLoading(true);
       try {
         if (!safe4337Pack) throw new Error("Safe not initialized");
@@ -90,8 +121,10 @@ export const useSafe = () => {
 
         const receipt = await withPolling(
           () => safe4337Pack.getUserOperationReceipt(userOpHash),
-          1000,
-          15000
+          {
+            interval: 1000,
+            timeout: 15000,
+          }
         );
 
         if (!receipt?.success) {
@@ -103,7 +136,10 @@ export const useSafe = () => {
           description: "Transaction executed successfully",
         });
 
-        return receipt.receipt.transactionHash as Hex;
+        return {
+          receiptHash: receipt.receipt.transactionHash as Hex,
+          safeOperationHash: safeOperation.getHash(),
+        };
       } catch (error) {
         console.error("Safe transaction failed:", error);
         toast({
@@ -126,5 +162,7 @@ export const useSafe = () => {
     isLoading,
     initiateSafeTransaction,
     getSafeExplorerLink,
+    ethBalance,
+    getTxConfirmations,
   };
 };

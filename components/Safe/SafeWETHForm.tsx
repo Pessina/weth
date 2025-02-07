@@ -1,11 +1,11 @@
 import { useSafe } from "@/hooks/useSafe"
-import { encodeFunctionData, Hex } from "viem"
+import { encodeFunctionData } from "viem"
 import { wethABI } from "@/contracts/weth/wethABI"
 import { contractAddresses } from "@/constants/addresses"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { SafeInitForm } from "@/components/SafeInitForm"
-import { WETHAmountForm } from "@/components/WETHAmountForm"
+import { SafeInitForm } from "./SafeInitForm"
 import { SafeDetails } from "./SafeDetails"
+import { WETHAmountForm } from "@/components/WETHAmountForm"
 
 export function SafeWETHForm() {
     const {
@@ -14,38 +14,45 @@ export function SafeWETHForm() {
         isLoading,
         initiateSafeTransaction,
         initSafe,
-        getSafeExplorerLink
+        getSafeExplorerLink,
+        ethBalance
     } = useSafe()
 
-    async function handleWrap(amount: bigint): Promise<Hex> {
+    async function handleWrap(amount: bigint): Promise<void> {
+        // TODO: This should be implemented on the useWETHContract hook
         const depositData = encodeFunctionData({
             abi: wethABI,
             functionName: 'deposit'
         });
 
-        return await initiateSafeTransaction({
+        const { receiptHash, safeOperationHash } = await initiateSafeTransaction({
             transactions: [{
                 to: contractAddresses.weth.sepolia,
                 data: depositData,
                 value: amount.toString()
             }]
         });
+
+        // TODO: Refetch queries here or inside the initiateSafeTransaction hook
     }
 
-    async function handleUnwrap(amount: bigint): Promise<Hex> {
+    async function handleUnwrap(amount: bigint): Promise<void> {
+        // TODO: This should be implemented on the useWETHContract hook
         const withdrawData = encodeFunctionData({
             abi: wethABI,
             functionName: 'withdraw',
             args: [amount]
         });
 
-        return await initiateSafeTransaction({
+        const { receiptHash, safeOperationHash } = await initiateSafeTransaction({
             transactions: [{
                 to: contractAddresses.weth.sepolia,
                 data: withdrawData,
                 value: "0"
             }]
         });
+
+        // TODO: Refetch queries here or inside the initiateSafeTransaction hook
     }
 
     if (!safeAddress) {
@@ -60,7 +67,11 @@ export function SafeWETHForm() {
                         Your Safe account is not deployed yet. It will be deployed with your first transaction.
                     </AlertDescription>
                 </Alert>
-            ) : <SafeDetails safeAddress={safeAddress} isSafeDeployed={isSafeDeployed} getSafeExplorerLink={getSafeExplorerLink} />}
+            ) : <SafeDetails
+                ethBalance={ethBalance ?? 0n}
+                safeAddress={safeAddress}
+                isSafeDeployed={isSafeDeployed}
+                getSafeExplorerLink={getSafeExplorerLink} />}
             <WETHAmountForm
                 isLoading={isLoading}
                 onWrap={handleWrap}

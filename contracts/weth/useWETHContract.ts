@@ -1,13 +1,11 @@
 import {
+  Config,
   useWriteContract,
   useReadContract,
-  Config,
-  useAccount,
   usePublicClient,
-  useBalance,
 } from "wagmi";
 import { useCallback, useState } from "react";
-import { Hex, parseEther } from "viem";
+import { Hex } from "viem";
 import { wethABI } from "./wethABI";
 import { contractAddresses } from "@/constants/addresses";
 import { useToast } from "@/hooks/use-toast";
@@ -30,9 +28,15 @@ type WETHAction = {
   };
 };
 
-export function useWETHContract() {
-  const { address } = useAccount();
-  const { refetch: refetchETHBalance } = useBalance({ address });
+type UseWETHContractProps = {
+  address?: string;
+  refreshQueries?: () => Promise<void>;
+};
+
+export function useWETHContract({
+  address,
+  refreshQueries,
+}: UseWETHContractProps) {
   const publicClient = usePublicClient();
   const { toast } = useToast();
   const [isWriting, setIsWriting] = useState(false);
@@ -41,22 +45,16 @@ export function useWETHContract() {
     data: wethBalance,
     isLoading: isWETHBalanceLoading,
     refetch: refetchWETHBalance,
-  } = useReadContract<
-    typeof wethABI,
-    "balanceOf",
-    [address: Hex],
-    Config,
-    bigint
-  >({
+  } = useReadContract<typeof wethABI, "balanceOf", [Hex], Config, bigint>({
     ...contractConfig,
     functionName: "balanceOf",
-    args: [address as Hex],
+    args: [address],
   });
 
   const refresh = useCallback(async () => {
     await refetchWETHBalance();
-    await refetchETHBalance();
-  }, [refetchWETHBalance, refetchETHBalance]);
+    await refreshQueries?.();
+  }, [refetchWETHBalance, refreshQueries]);
 
   const { writeContractAsync: writeContract } = useWriteContract();
 
@@ -96,7 +94,7 @@ export function useWETHContract() {
         writeContractArgs: {
           functionName: "deposit",
           amount,
-          value: parseEther(amount.toString()),
+          value: amount,
         },
         messages: {
           successMessage: `Successfully deposited ${amount} ETH to WETH`,
@@ -112,7 +110,7 @@ export function useWETHContract() {
         writeContractArgs: {
           functionName: "withdraw",
           amount,
-          args: [parseEther(amount.toString())],
+          args: [amount],
         },
         messages: {
           successMessage: `Successfully withdrew ${amount} WETH to ETH`,

@@ -16,8 +16,10 @@ export const splitAddress = (
 
 export const withPolling = async <T>(
   fn: () => Promise<T | null>,
-  interval: number,
-  timeout: number
+  options: {
+    interval: number;
+    timeout: number;
+  }
 ): Promise<T> => {
   const startTime = Date.now();
   let timeoutId: NodeJS.Timeout;
@@ -32,7 +34,7 @@ export const withPolling = async <T>(
     timeoutId = setTimeout(() => {
       cleanup();
       reject(new Error("Polling timed out"));
-    }, timeout);
+    }, options.timeout);
 
     const poll = async () => {
       if (isTimedOut) return;
@@ -42,8 +44,8 @@ export const withPolling = async <T>(
         if (result) {
           cleanup();
           resolve(result);
-        } else if (!isTimedOut && Date.now() - startTime < timeout) {
-          setTimeout(poll, interval);
+        } else if (!isTimedOut && Date.now() - startTime < options.timeout) {
+          setTimeout(poll, options.interval);
         }
       } catch (error) {
         cleanup();
