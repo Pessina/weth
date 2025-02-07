@@ -2,10 +2,11 @@ import { useSafe } from "@/hooks/useSafe"
 import { encodeFunctionData } from "viem"
 import { wethABI } from "@/contracts/weth/wethABI"
 import { contractAddresses } from "@/constants/addresses"
-import { Alert, AlertDescription } from "@/components/ui/alert"
 import { SafeInitForm } from "./SafeInitForm"
 import { SafeDetails } from "./SafeDetails"
 import { WETHAmountForm } from "@/components/WETHAmountForm"
+import { useSafeStore } from "@/stores/useSafeStore"
+import { useQuery } from "@tanstack/react-query"
 
 export function SafeWETHForm() {
     const {
@@ -15,8 +16,11 @@ export function SafeWETHForm() {
         initiateSafeTransaction,
         initSafe,
         getSafeExplorerLink,
-        ethBalance
+        ethBalance,
+        getTxConfirmations,
+        resetSafe
     } = useSafe()
+    const { onGoingSafeOperationHash, setOnGoingSafeOperationHash } = useSafeStore();
 
     async function handleWrap(amount: bigint): Promise<void> {
         // TODO: This should be implemented on the useWETHContract hook
@@ -32,6 +36,9 @@ export function SafeWETHForm() {
                 value: amount.toString()
             }]
         });
+        setOnGoingSafeOperationHash(safeOperationHash);
+
+        console.log(receiptHash, safeOperationHash);
 
         // TODO: Refetch queries here or inside the initiateSafeTransaction hook
     }
@@ -51,9 +58,25 @@ export function SafeWETHForm() {
                 value: "0"
             }]
         });
+        setOnGoingSafeOperationHash(safeOperationHash);
+
+        console.log(receiptHash, safeOperationHash);
 
         // TODO: Refetch queries here or inside the initiateSafeTransaction hook
     }
+
+    // const { data: txConfirmations } = useQuery({
+    //     queryKey: ["txConfirmations", onGoingSafeOperationHash],
+    //     queryFn: () => {
+    //         if (!onGoingSafeOperationHash) return 0;
+
+    //         return getTxConfirmations({ safeTxHash: onGoingSafeOperationHash })
+    //     },
+    //     enabled: !!onGoingSafeOperationHash,
+    //     refetchInterval: 1000,
+    // });
+
+    // console.log(txConfirmations);
 
     if (!safeAddress) {
         return <SafeInitForm isLoading={isLoading} initSafe={initSafe} />
@@ -61,17 +84,13 @@ export function SafeWETHForm() {
 
     return (
         <div className="space-y-4 pt-4">
-            {!isSafeDeployed ? (
-                <Alert variant="default">
-                    <AlertDescription>
-                        Your Safe account is not deployed yet. It will be deployed with your first transaction.
-                    </AlertDescription>
-                </Alert>
-            ) : <SafeDetails
+            <SafeDetails
+                disconnect={resetSafe}
                 ethBalance={ethBalance ?? 0n}
                 safeAddress={safeAddress}
-                isSafeDeployed={isSafeDeployed}
-                getSafeExplorerLink={getSafeExplorerLink} />}
+                isSafeDeployed={isSafeDeployed ?? false}
+                getSafeExplorerLink={getSafeExplorerLink}
+            />
             <WETHAmountForm
                 isLoading={isLoading}
                 onWrap={handleWrap}

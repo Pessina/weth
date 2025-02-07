@@ -6,11 +6,12 @@ import {
 } from "@safe-global/relay-kit";
 import SafeApiKit from "@safe-global/api-kit";
 import { useEnv } from "./useEnv";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "./use-toast";
 import { withPolling } from "@/lib/utils";
 import { Hex } from "viem";
 import { sepolia } from "viem/chains";
+import { useSafeStore } from "@/stores/useSafeStore";
 
 type SafeInitOptions = {
   owners: string[];
@@ -27,9 +28,10 @@ export const useSafe = () => {
   const { bundlerUrl, paymasterUrl } = useEnv();
   const { data: walletClient } = useWalletClient();
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [safe4337Pack, setSafe4337Pack] = useState<Safe4337Pack | null>(null);
   const [safeApiKit, setSafeApiKit] = useState<SafeApiKit | null>(null);
   const { toast } = useToast();
+  const { safe4337Pack, setSafe4337Pack, reset } = useSafeStore();
+  const queryClient = useQueryClient();
 
   const getSafeExplorerLink = useCallback((address: string) => {
     return `https://app.safe.global/home?safe=sep:${address}`;
@@ -45,6 +47,8 @@ export const useSafe = () => {
         })
       );
 
+      console.log(options);
+
       setSafe4337Pack(
         await Safe4337Pack.init({
           provider: walletClient?.transport,
@@ -57,33 +61,39 @@ export const useSafe = () => {
           options,
         })
       );
+
+      queryClient.invalidateQueries({ queryKey: ["safeAddress"] });
     },
-    [bundlerUrl, paymasterUrl, walletClient]
+    [bundlerUrl, paymasterUrl, queryClient, setSafe4337Pack, walletClient]
   );
 
   const { data: safeAddress } = useQuery({
-    queryKey: ["safeAddress", walletClient?.account.address],
+    queryKey: ["safeAddress", safe4337Pack],
     queryFn: async () => {
-      return safe4337Pack?.protocolKit.getAddress();
+      if (!safe4337Pack) return null;
+
+      return safe4337Pack.protocolKit.getAddress();
     },
-    enabled: !!safe4337Pack,
   });
 
   const { data: isSafeDeployed } = useQuery({
     queryKey: ["isSafeDeployed", safeAddress],
     queryFn: async () => {
-      return safe4337Pack?.protocolKit.isSafeDeployed();
+      if (!safe4337Pack) return false;
+
+      return safe4337Pack.protocolKit.isSafeDeployed();
     },
-    enabled: !!safe4337Pack,
   });
 
   const { data: ethBalance } = useQuery({
     queryKey: ["ethBalance", safeAddress],
     queryFn: async () => {
-      if (!safeAddress) return 0n;
-      return safe4337Pack?.protocolKit.getBalance();
+      if (!safe4337Pack) return 0n;
+
+      const balance = await safe4337Pack.protocolKit.getBalance();
+
+      return balance ?? 0n;
     },
-    enabled: !!safeAddress,
   });
 
   const getTxConfirmations = useCallback(
@@ -96,10 +106,27 @@ export const useSafe = () => {
     [safe4337Pack, safeApiKit]
   );
 
+  const hasEnoughConfirmations = useCallback(
+    async ({ safeTxHash }: { safeTxHash: string }) => {
+      if (!safe4337Pack) return false;
+      const transaction = await safeApiKit?.getTransaction(safeTxHash);
+
+      if (!transaction || !transaction.confirmations) return false;
+
+      return (
+        transaction.confirmations?.length >= transaction.confirmationsRequired
+      );
+    },
+    [safe4337Pack, safeApiKit]
+  );
+
   const initiateSafeTransaction = useCallback(
-    async (
-      safe4337CreateTransactionProps: Safe4337CreateTransactionProps
-    ): Promise<{
+    async ({
+      // TODO: This should be more configurable, by the caller instead of limit to only transactions
+      transactions,
+    }: {
+      transactions: Safe4337CreateTransactionProps["transactions"];
+    }): Promise<{
       receiptHash: string;
       safeOperationHash: string;
     }> => {
@@ -107,13 +134,42 @@ export const useSafe = () => {
       try {
         if (!safe4337Pack) throw new Error("Safe not initialized");
 
-        const safeOperation = await safe4337Pack.createTransaction(
-          safe4337CreateTransactionProps
-        );
+        const safeTransaction =
+          await safe4337Pack.protocolKit.createTransaction({
+            transactions,
+          });
+
+        const safeOperation = await safe4337Pack.createTransaction({
+          transactions,
+        });
 
         const signedSafeOperation = await safe4337Pack.signSafeOperation(
           safeOperation
         );
+
+        const isExecutable = await hasEnoughConfirmations({
+          safeTxHash: safeOperation.getHash(),
+        });
+
+        if (!isExecutable) {
+          if (!safeAddress || !walletClient?.account.address) {
+            throw new Error("Safe address not found");
+          }
+
+          await safeApiKit?.proposeTransaction({
+            safeAddress,
+            safeTransactionData: safeTransaction.data,
+            safeTxHash: safeOperation.getHash(),
+            senderAddress: walletClient?.account.address,
+            senderSignature: signedSafeOperation.encodedSignatures(),
+          });
+
+          console.log("Proposal sent");
+          return {
+            receiptHash: "",
+            safeOperationHash: safeOperation.getHash(),
+          };
+        }
 
         const userOpHash = await safe4337Pack.executeTransaction({
           executable: signedSafeOperation,
@@ -151,8 +207,21 @@ export const useSafe = () => {
         setIsLoading(false);
       }
     },
-    [safe4337Pack, toast]
+    [
+      hasEnoughConfirmations,
+      safe4337Pack,
+      safeAddress,
+      safeApiKit,
+      toast,
+      walletClient?.account.address,
+    ]
   );
+
+  const resetSafe = useCallback(() => {
+    reset();
+    // TODO: Should targe only the related queries
+    queryClient.invalidateQueries({ refetchType: "all" });
+  }, [queryClient, reset]);
 
   return {
     initSafe,
@@ -164,5 +233,6 @@ export const useSafe = () => {
     getSafeExplorerLink,
     ethBalance,
     getTxConfirmations,
+    resetSafe,
   };
 };
