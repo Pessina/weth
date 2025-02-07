@@ -120,6 +120,37 @@ export const useSafe = () => {
     [safe4337Pack, safeApiKit]
   );
 
+  const { data: transactions } = useQuery({
+    queryKey: ["transactions", safeAddress],
+    queryFn: async () => {
+      return safeApiKit?.getAllTransactions(safeAddress ?? "");
+    },
+    refetchInterval: 1000,
+  });
+
+  console.log({ transactions });
+
+  const deploySafe = useCallback(async () => {
+    if (!safe4337Pack) throw new Error("Safe not initialized");
+
+    const deploymentTransaction =
+      await safe4337Pack.protocolKit.createSafeDeploymentTransaction();
+
+    const client = await safe4337Pack.protocolKit
+      .getSafeProvider()
+      .getExternalSigner();
+
+    if (!client) throw new Error("Client not found");
+
+    const transactionHash = await client.sendTransaction({
+      to: deploymentTransaction.to,
+      value: BigInt(deploymentTransaction.value),
+      data: deploymentTransaction.data as `0x${string}`,
+      chain: sepolia,
+    });
+    console.log("Deployment transaction sent", { transactionHash });
+  }, [safe4337Pack]);
+
   const initiateSafeTransaction = useCallback(
     async ({
       // TODO: This should be more configurable, by the caller instead of limit to only transactions
@@ -134,6 +165,7 @@ export const useSafe = () => {
       try {
         if (!safe4337Pack) throw new Error("Safe not initialized");
 
+        console.log("safeTransaction");
         const safeTransaction =
           await safe4337Pack.protocolKit.createTransaction({
             transactions,
@@ -156,12 +188,20 @@ export const useSafe = () => {
             throw new Error("Safe address not found");
           }
 
+          //   TODO: It's only possible to make proposal on deployed safes
+          const safeTxHash = await safe4337Pack.protocolKit.getTransactionHash(
+            safeTransaction
+          );
+          const signature = await safe4337Pack.protocolKit.signHash(safeTxHash);
+
+          console.log(safeTxHash);
+
           await safeApiKit?.proposeTransaction({
             safeAddress,
             safeTransactionData: safeTransaction.data,
-            safeTxHash: safeOperation.getHash(),
+            safeTxHash: safeTxHash,
             senderAddress: walletClient?.account.address,
-            senderSignature: signedSafeOperation.encodedSignatures(),
+            senderSignature: signature.data,
           });
 
           console.log("Proposal sent");
