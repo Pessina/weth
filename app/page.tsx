@@ -18,6 +18,11 @@ import {
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Balance } from "@/components/Balance"
+import { useSafe } from "@/hooks/useSafe";
+import Link from "next/link";
+import { parseEther, encodeFunctionData } from "viem";
+import { wethABI } from "@/contracts/weth/wethABI";
+import { contractAddresses } from "@/constants/addresses";
 
 const formSchema = z.object({
   amount: z.string().min(1, "Amount is required")
@@ -28,7 +33,8 @@ export default function Home() {
   const { data: ethBalance, isLoading: isEthBalanceLoading } = useBalance(
     { address }
   )
-  const { wethBalance, deposit, withdraw, isWETHBalanceLoading, isWriting } = useWETHContract();
+  const { wethBalance, isWETHBalanceLoading } = useWETHContract();
+  const { safeAddress, isSafeDeployed, isLoading, initiateSafeTransaction, getSafeExplorerLink, splitAddress } = useSafe();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -39,19 +45,42 @@ export default function Home() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
-      await deposit(parseFloat(values.amount))
-      form.reset()
+      const depositData = encodeFunctionData({
+        abi: wethABI,
+        functionName: 'deposit'
+      });
+
+      await initiateSafeTransaction({
+        transactions: [{
+          to: contractAddresses.weth.sepolia,
+          data: depositData,
+          value: parseEther(values.amount).toString()
+        }]
+      });
+      form.reset();
     } catch (error) {
-      console.error(error)
+      console.error(error);
     }
   }
 
   async function onWithdraw(values: z.infer<typeof formSchema>) {
     try {
-      await withdraw(parseFloat(values.amount))
-      form.reset()
+      const withdrawData = encodeFunctionData({
+        abi: wethABI,
+        functionName: 'withdraw',
+        args: [parseEther(values.amount)]
+      });
+
+      await initiateSafeTransaction({
+        transactions: [{
+          to: contractAddresses.weth.sepolia,
+          data: withdrawData,
+          value: "0"
+        }]
+      });
+      form.reset();
     } catch (error) {
-      console.error(error)
+      console.error(error);
     }
   }
 
@@ -65,6 +94,19 @@ export default function Home() {
             <CardDescription className="flex flex-col gap-2">
               <Balance isLoading={isEthBalanceLoading} balance={ethBalance?.value ?? 0n} label="ETH" />
               <Balance isLoading={isWETHBalanceLoading} balance={wethBalance ?? 0n} label="WETH" />
+              {safeAddress && (
+                <div className="text-sm">
+                  Safe Account:{" "}
+                  <Link
+                    href={getSafeExplorerLink(safeAddress)}
+                    target="_blank"
+                    className="text-blue-500 hover:underline"
+                  >
+                    {splitAddress(safeAddress)}
+                  </Link>
+                  {!isSafeDeployed && " (not deployed)"}
+                </div>
+              )}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -87,7 +129,7 @@ export default function Home() {
                   <Button
                     type="button"
                     className="flex-1"
-                    disabled={isWriting}
+                    disabled={isLoading}
                     onClick={form.handleSubmit(onSubmit)}
                   >
                     Deposit
@@ -95,7 +137,7 @@ export default function Home() {
                   <Button
                     type="button"
                     className="flex-1"
-                    disabled={isWriting}
+                    disabled={isLoading}
                     onClick={form.handleSubmit(onWithdraw)}
                   >
                     Withdraw
@@ -106,6 +148,6 @@ export default function Home() {
           </CardContent>
         </Card>
       </div>}
-    </div >
+    </div>
   );
 }
