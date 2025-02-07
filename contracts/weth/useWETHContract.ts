@@ -20,7 +20,7 @@ const contractConfig = {
 type WETHAction = {
   writeContractArgs: {
     functionName: string;
-    amount: number;
+    amount: bigint;
     args?: unknown[];
     value?: bigint;
   };
@@ -91,7 +91,7 @@ export function useWETHContract() {
   );
 
   const deposit = useCallback(
-    async (amount: number) =>
+    async (amount: bigint) =>
       executeWETHAction({
         writeContractArgs: {
           functionName: "deposit",
@@ -107,7 +107,7 @@ export function useWETHContract() {
   );
 
   const withdraw = useCallback(
-    async (amount: number) =>
+    async (amount: bigint) =>
       executeWETHAction({
         writeContractArgs: {
           functionName: "withdraw",

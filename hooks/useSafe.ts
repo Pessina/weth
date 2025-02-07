@@ -8,6 +8,18 @@ import { useEnv } from "./useEnv";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "./use-toast";
 import { withPolling } from "@/lib/utils";
+import { Hex } from "viem";
+
+type SafeInitOptions = {
+  owners: string[];
+  threshold: number;
+};
+
+export type InitSafeFn = ({
+  options,
+}: {
+  options: SafeInitOptions;
+}) => Promise<void>;
 
 export const useSafe = () => {
   const { bundlerUrl, paymasterUrl } = useEnv();
@@ -20,15 +32,8 @@ export const useSafe = () => {
     return `https://app.safe.global/home?safe=sep:${address}`;
   }, []);
 
-  const initSafe = useCallback(
-    async ({
-      options,
-    }: {
-      options: {
-        owners: string[];
-        threshold: number;
-      };
-    }) => {
+  const initSafe = useCallback<InitSafeFn>(
+    async ({ options }) => {
       if (!walletClient) throw new Error("Wallet client not found");
 
       setSafe4337Pack(
@@ -66,7 +71,7 @@ export const useSafe = () => {
   const initiateSafeTransaction = useCallback(
     async (
       safe4337CreateTransactionProps: Safe4337CreateTransactionProps
-    ): Promise<string> => {
+    ): Promise<Hex> => {
       setIsLoading(true);
       try {
         if (!safe4337Pack) throw new Error("Safe not initialized");
@@ -98,7 +103,7 @@ export const useSafe = () => {
           description: "Transaction executed successfully",
         });
 
-        return receipt.receipt.transactionHash;
+        return receipt.receipt.transactionHash as Hex;
       } catch (error) {
         console.error("Safe transaction failed:", error);
         toast({

@@ -39,7 +39,6 @@ export const withPolling = async <T>(
 
       try {
         const result = await fn();
-        console.log("result", result);
         if (result) {
           cleanup();
           resolve(result);
