@@ -14,6 +14,7 @@ export const useEnv = () => {
       envSchema.safeParse({
         rainbowAppName: process.env.NEXT_PUBLIC_RAINBOW_APP_NAME,
         rainbowProjectId: process.env.NEXT_PUBLIC_RAINBOW_PROJECT_ID,
+        // TODO: Check if the following 2 needs to be stored on a backend
         bundlerUrl: process.env.NEXT_PUBLIC_BUNDLER_URL,
         paymasterUrl: process.env.NEXT_PUBLIC_PAYMASTER_URL,
       }),
