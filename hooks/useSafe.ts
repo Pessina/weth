@@ -1,10 +1,12 @@
 import { useCallback, useState } from "react";
-import { useWalletClient } from "wagmi";
+import { usePublicClient, useWalletClient } from "wagmi";
 import {
   Safe4337CreateTransactionProps,
   Safe4337Pack,
 } from "@safe-global/relay-kit";
-import SafeApiKit from "@safe-global/api-kit";
+import SafeApiKit, {
+  SafeMultisigTransactionListResponse,
+} from "@safe-global/api-kit";
 import { useEnv } from "./useEnv";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "./use-toast";
@@ -27,6 +29,7 @@ export type InitSafeFn = ({
 export const useSafe = () => {
   const { bundlerUrl, paymasterUrl } = useEnv();
   const { data: walletClient } = useWalletClient();
+  const publicClient = usePublicClient();
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [safeApiKit, setSafeApiKit] = useState<SafeApiKit | null>(null);
   const { toast } = useToast();
@@ -52,7 +55,6 @@ export const useSafe = () => {
       setSafe4337Pack(
         await Safe4337Pack.init({
           provider: walletClient?.transport,
-          signer: walletClient?.account.address,
           bundlerUrl: bundlerUrl,
           paymasterOptions: {
             isSponsored: true,
@@ -96,60 +98,102 @@ export const useSafe = () => {
     },
   });
 
-  const getTxConfirmations = useCallback(
-    async ({ safeTxHash }: { safeTxHash: string }) => {
-      if (!safe4337Pack) return 0;
-      const transaction = await safeApiKit?.getTransaction(safeTxHash);
-
-      return transaction?.confirmations;
-    },
-    [safe4337Pack, safeApiKit]
-  );
-
-  const hasEnoughConfirmations = useCallback(
-    async ({ safeTxHash }: { safeTxHash: string }) => {
-      if (!safe4337Pack) return false;
-      const transaction = await safeApiKit?.getTransaction(safeTxHash);
-
-      if (!transaction || !transaction.confirmations) return false;
-
-      return (
-        transaction.confirmations?.length >= transaction.confirmationsRequired
-      );
-    },
-    [safe4337Pack, safeApiKit]
-  );
-
-  const { data: transactions } = useQuery({
+  const { data: pendingTransactions } = useQuery<
+    unknown,
+    unknown,
+    SafeMultisigTransactionListResponse
+  >({
     queryKey: ["transactions", safeAddress],
     queryFn: async () => {
-      return safeApiKit?.getAllTransactions(safeAddress ?? "");
+      return safeApiKit?.getPendingTransactions(safeAddress ?? "");
     },
     refetchInterval: 1000,
+    enabled: !!safeAddress,
   });
 
-  console.log({ transactions });
-
+  // TODO Add error handling
   const deploySafe = useCallback(async () => {
-    if (!safe4337Pack) throw new Error("Safe not initialized");
+    if (!safe4337Pack || !walletClient) throw new Error("Safe not initialized");
 
     const deploymentTransaction =
       await safe4337Pack.protocolKit.createSafeDeploymentTransaction();
 
-    const client = await safe4337Pack.protocolKit
-      .getSafeProvider()
-      .getExternalSigner();
-
-    if (!client) throw new Error("Client not found");
-
-    const transactionHash = await client.sendTransaction({
+    const txHash = await walletClient?.sendTransaction({
       to: deploymentTransaction.to,
       value: BigInt(deploymentTransaction.value),
       data: deploymentTransaction.data as `0x${string}`,
-      chain: sepolia,
     });
-    console.log("Deployment transaction sent", { transactionHash });
-  }, [safe4337Pack]);
+
+    if (!txHash) throw new Error("Transaction failed");
+
+    const receipt = await publicClient?.waitForTransactionReceipt({
+      hash: txHash,
+    });
+
+    return receipt;
+  }, [publicClient, safe4337Pack, walletClient]);
+
+  // TODO Add error handling
+  const signSafeProposal = useCallback(
+    async (safeTxHash: string) => {
+      if (!safe4337Pack) {
+        throw new Error("Safe not initialized");
+      }
+
+      const signature = await safe4337Pack.protocolKit.signHash(safeTxHash);
+      await safeApiKit?.confirmTransaction(safeTxHash, signature.data);
+    },
+    [safe4337Pack, safeApiKit]
+  );
+
+  // TODO Add error handling
+  const createSafeProposal = useCallback(
+    async (transactions: Safe4337CreateTransactionProps["transactions"]) => {
+      if (!safe4337Pack || !walletClient || !safeAddress)
+        throw new Error("Safe not initialized");
+
+      const safeTransaction = await safe4337Pack.protocolKit.createTransaction({
+        transactions,
+      });
+
+      const safeTxHash = await safe4337Pack.protocolKit.getTransactionHash(
+        safeTransaction
+      );
+
+      const signature = await safe4337Pack.protocolKit.signHash(safeTxHash);
+
+      await safeApiKit?.proposeTransaction({
+        safeAddress,
+        safeTransactionData: safeTransaction.data,
+        safeTxHash,
+        senderAddress: walletClient?.account.address,
+        senderSignature: signature.data,
+      });
+    },
+    [safe4337Pack, safeAddress, safeApiKit, walletClient]
+  );
+
+  // TODO Add error handling
+  const executeSafeProposal = useCallback(
+    async (safeTxHash: string) => {
+      if (!safe4337Pack || !safeAddress)
+        throw new Error("Safe not initialized");
+
+      const safeTransaction = await safeApiKit?.getTransaction(safeTxHash);
+
+      if (!safeTransaction) throw new Error("Transaction not found");
+
+      // TODO: This is likely not needed, but without it I'm getting error "Safe is not deployed", while the bool isSafeDeployed is true.
+      // This error is causes because the contractManager on protocol kit is undefined
+      const safe = await safe4337Pack.protocolKit.connect({
+        provider: walletClient?.transport,
+        safeAddress,
+      });
+
+      await safe.executeTransaction(safeTransaction);
+    },
+    [safe4337Pack, safeAddress, safeApiKit, walletClient?.transport]
+  );
 
   const initiateSafeTransaction = useCallback(
     async ({
@@ -165,11 +209,9 @@ export const useSafe = () => {
       try {
         if (!safe4337Pack) throw new Error("Safe not initialized");
 
-        console.log("safeTransaction");
-        const safeTransaction =
-          await safe4337Pack.protocolKit.createTransaction({
-            transactions,
-          });
+        if (!isSafeDeployed) {
+          await deploySafe();
+        }
 
         const safeOperation = await safe4337Pack.createTransaction({
           transactions,
@@ -178,38 +220,6 @@ export const useSafe = () => {
         const signedSafeOperation = await safe4337Pack.signSafeOperation(
           safeOperation
         );
-
-        const isExecutable = await hasEnoughConfirmations({
-          safeTxHash: safeOperation.getHash(),
-        });
-
-        if (!isExecutable) {
-          if (!safeAddress || !walletClient?.account.address) {
-            throw new Error("Safe address not found");
-          }
-
-          //   TODO: It's only possible to make proposal on deployed safes
-          const safeTxHash = await safe4337Pack.protocolKit.getTransactionHash(
-            safeTransaction
-          );
-          const signature = await safe4337Pack.protocolKit.signHash(safeTxHash);
-
-          console.log(safeTxHash);
-
-          await safeApiKit?.proposeTransaction({
-            safeAddress,
-            safeTransactionData: safeTransaction.data,
-            safeTxHash: safeTxHash,
-            senderAddress: walletClient?.account.address,
-            senderSignature: signature.data,
-          });
-
-          console.log("Proposal sent");
-          return {
-            receiptHash: "",
-            safeOperationHash: safeOperation.getHash(),
-          };
-        }
 
         const userOpHash = await safe4337Pack.executeTransaction({
           executable: signedSafeOperation,
@@ -247,19 +257,12 @@ export const useSafe = () => {
         setIsLoading(false);
       }
     },
-    [
-      hasEnoughConfirmations,
-      safe4337Pack,
-      safeAddress,
-      safeApiKit,
-      toast,
-      walletClient?.account.address,
-    ]
+    [deploySafe, isSafeDeployed, safe4337Pack, toast]
   );
 
   const resetSafe = useCallback(() => {
     reset();
-    // TODO: Should targe only the related queries
+    // TODO: Should target only the related queries
     queryClient.invalidateQueries({ refetchType: "all" });
   }, [queryClient, reset]);
 
@@ -272,7 +275,11 @@ export const useSafe = () => {
     initiateSafeTransaction,
     getSafeExplorerLink,
     ethBalance,
-    getTxConfirmations,
     resetSafe,
+    pendingTransactions,
+    deploySafe,
+    signSafeProposal,
+    createSafeProposal,
+    executeSafeProposal,
   };
 };

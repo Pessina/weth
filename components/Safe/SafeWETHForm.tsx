@@ -6,7 +6,7 @@ import { SafeInitForm } from "./SafeInitForm"
 import { SafeDetails } from "./SafeDetails"
 import { WETHAmountForm } from "@/components/WETHAmountForm"
 import { useSafeStore } from "@/stores/useSafeStore"
-import { useQuery } from "@tanstack/react-query"
+import { SafePendingTransactions } from "./SafePendingTransactions"
 
 export function SafeWETHForm() {
     const {
@@ -17,10 +17,13 @@ export function SafeWETHForm() {
         initSafe,
         getSafeExplorerLink,
         ethBalance,
-        getTxConfirmations,
-        resetSafe
+        resetSafe,
+        pendingTransactions,
+        signSafeProposal,
+        createSafeProposal,
+        executeSafeProposal,
     } = useSafe()
-    const { onGoingSafeOperationHash, setOnGoingSafeOperationHash } = useSafeStore();
+    const { setOnGoingSafeOperationHash } = useSafeStore();
 
     async function handleWrap(amount: bigint): Promise<void> {
         // TODO: This should be implemented on the useWETHContract hook
@@ -90,6 +93,12 @@ export function SafeWETHForm() {
                 safeAddress={safeAddress}
                 isSafeDeployed={isSafeDeployed ?? false}
                 getSafeExplorerLink={getSafeExplorerLink}
+            />
+            <SafePendingTransactions
+                pendingTransactions={pendingTransactions}
+                signSafeProposal={signSafeProposal}
+                createSafeProposal={createSafeProposal}
+                executeSafeProposal={executeSafeProposal}
             />
             <WETHAmountForm
                 isLoading={isLoading}
