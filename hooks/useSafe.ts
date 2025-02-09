@@ -182,6 +182,7 @@ export const useSafe = () => {
           if (!safe4337Pack || !walletClient || !safeAddress)
             throw new Error("Safe not initialized");
 
+          // TODO: If this is called right after send a tx it can be out of sync.
           const nextNonce = (await safeApiKit?.getSafeInfo(safeAddress))?.nonce;
 
           if (!nextNonce) throw new Error("Failed to get next nonce");
