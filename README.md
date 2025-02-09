@@ -12,8 +12,8 @@ This implementation includes:
 ## Prerequisites
 
 - Node.js
-- Credentials for (Pimlico)[https://www.pimlico.io/]
-- Credentials for (RainbowKit)[https://www.rainbowkit.com/docs/installation#configure]
+- Credentials for [Pimlico](https://www.pimlico.io/)
+- Credentials for [RainbowKit](https://www.rainbowkit.com/docs/installation#configure)
 
 ## Setup
 
