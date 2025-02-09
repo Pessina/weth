@@ -69,7 +69,7 @@ export function SafeInitForm({ isLoading, initSafe }: SafeInitFormProps) {
                         name="owners"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Owner Addresses</FormLabel>
+                                <FormLabel>Owners Addresses</FormLabel>
                                 <FormControl>
                                     <div className="relative">
                                         <Input

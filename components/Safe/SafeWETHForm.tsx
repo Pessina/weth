@@ -28,6 +28,7 @@ export function SafeWETHForm() {
     } = useSafe()
 
     async function handleWrap(amount: bigint): Promise<void> {
+        // TODO: This should be exported from the useWETHContract
         const depositData = encodeFunctionData({
             abi: wethABI,
             functionName: 'deposit'
@@ -43,6 +44,7 @@ export function SafeWETHForm() {
     }
 
     async function handleUnwrap(amount: bigint): Promise<void> {
+        // TODO: This should be exported from the useWETHContract
         const withdrawData = encodeFunctionData({
             abi: wethABI,
             functionName: 'withdraw',
