@@ -50,8 +50,6 @@ export const useSafe = () => {
         })
       );
 
-      console.log(options);
-
       setSafe4337Pack(
         await Safe4337Pack.init({
           provider: walletClient?.transport,
@@ -99,17 +97,19 @@ export const useSafe = () => {
   });
 
   const { data: pendingTransactions } = useQuery<
-    unknown,
-    unknown,
-    SafeMultisigTransactionListResponse
+    SafeMultisigTransactionListResponse | undefined
   >({
     queryKey: ["transactions", safeAddress],
     queryFn: async () => {
       return safeApiKit?.getPendingTransactions(safeAddress ?? "");
     },
-    refetchInterval: 1000,
     enabled: !!safeAddress,
   });
+
+  const refetchSafeQueries = useCallback(() => {
+    // TODO: This should target only the related queries
+    queryClient.invalidateQueries({ refetchType: "all" });
+  }, [queryClient]);
 
   // TODO Add error handling
   const deploySafe = useCallback(async () => {
@@ -130,8 +130,9 @@ export const useSafe = () => {
       hash: txHash,
     });
 
+    refetchSafeQueries();
     return receipt;
-  }, [publicClient, safe4337Pack, walletClient]);
+  }, [publicClient, safe4337Pack, walletClient, refetchSafeQueries]);
 
   // TODO Add error handling
   const signSafeProposal = useCallback(
@@ -142,8 +143,9 @@ export const useSafe = () => {
 
       const signature = await safe4337Pack.protocolKit.signHash(safeTxHash);
       await safeApiKit?.confirmTransaction(safeTxHash, signature.data);
+      refetchSafeQueries();
     },
-    [safe4337Pack, safeApiKit]
+    [safe4337Pack, safeApiKit, refetchSafeQueries]
   );
 
   // TODO Add error handling
@@ -152,8 +154,17 @@ export const useSafe = () => {
       if (!safe4337Pack || !walletClient || !safeAddress)
         throw new Error("Safe not initialized");
 
+      const nextNonce = (await safeApiKit?.getSafeInfo(safeAddress))?.nonce;
+
+      if (!nextNonce) throw new Error("Failed to get next nonce");
+
       const safeTransaction = await safe4337Pack.protocolKit.createTransaction({
-        transactions,
+        transactions: await Promise.all(
+          transactions.map(async (tx, index) => ({
+            ...tx,
+            nonce: (BigInt(nextNonce) + BigInt(index)).toString(),
+          }))
+        ),
       });
 
       const safeTxHash = await safe4337Pack.protocolKit.getTransactionHash(
@@ -169,8 +180,10 @@ export const useSafe = () => {
         senderAddress: walletClient?.account.address,
         senderSignature: signature.data,
       });
+
+      refetchSafeQueries();
     },
-    [safe4337Pack, safeAddress, safeApiKit, walletClient]
+    [safe4337Pack, safeAddress, safeApiKit, walletClient, refetchSafeQueries]
   );
 
   // TODO Add error handling
@@ -191,8 +204,51 @@ export const useSafe = () => {
       });
 
       await safe.executeTransaction(safeTransaction);
+      refetchSafeQueries();
     },
-    [safe4337Pack, safeAddress, safeApiKit, walletClient?.transport]
+    [
+      safe4337Pack,
+      safeAddress,
+      safeApiKit,
+      walletClient?.transport,
+      refetchSafeQueries,
+    ]
+  );
+
+  const executeSafeTransaction = useCallback(
+    async (transactions: Safe4337CreateTransactionProps["transactions"]) => {
+      if (!safe4337Pack) throw new Error("Safe not initialized");
+
+      const safeOperation = await safe4337Pack.createTransaction({
+        transactions,
+      });
+
+      const signedSafeOperation = await safe4337Pack.signSafeOperation(
+        safeOperation
+      );
+
+      const userOpHash = await safe4337Pack.executeTransaction({
+        executable: signedSafeOperation,
+      });
+
+      const receipt = await withPolling(
+        () => safe4337Pack.getUserOperationReceipt(userOpHash),
+        {
+          interval: 1000,
+          timeout: 20 * 1000,
+        }
+      );
+
+      if (!receipt?.success) {
+        throw new Error("Transaction failed");
+      }
+
+      return {
+        receiptHash: receipt.receipt.transactionHash as Hex,
+        safeOperationHash: safeOperation.getHash(),
+      };
+    },
+    [safe4337Pack]
   );
 
   const initiateSafeTransaction = useCallback(
@@ -213,28 +269,10 @@ export const useSafe = () => {
           await deploySafe();
         }
 
-        const safeOperation = await safe4337Pack.createTransaction({
-          transactions,
-        });
-
-        const signedSafeOperation = await safe4337Pack.signSafeOperation(
-          safeOperation
-        );
-
-        const userOpHash = await safe4337Pack.executeTransaction({
-          executable: signedSafeOperation,
-        });
-
-        const receipt = await withPolling(
-          () => safe4337Pack.getUserOperationReceipt(userOpHash),
-          {
-            interval: 1000,
-            timeout: 15000,
-          }
-        );
-
-        if (!receipt?.success) {
-          throw new Error("Transaction failed");
+        if ((await safe4337Pack.protocolKit.getThreshold()) > 1) {
+          await createSafeProposal(transactions);
+        } else {
+          await executeSafeTransaction(transactions);
         }
 
         toast({
@@ -242,9 +280,11 @@ export const useSafe = () => {
           description: "Transaction executed successfully",
         });
 
+        refetchSafeQueries();
+
         return {
-          receiptHash: receipt.receipt.transactionHash as Hex,
-          safeOperationHash: safeOperation.getHash(),
+          receiptHash: "TODO: Fill with real values",
+          safeOperationHash: "TODO: Fill with real values",
         };
       } catch (error) {
         console.error("Safe transaction failed:", error);
@@ -257,7 +297,15 @@ export const useSafe = () => {
         setIsLoading(false);
       }
     },
-    [deploySafe, isSafeDeployed, safe4337Pack, toast]
+    [
+      createSafeProposal,
+      deploySafe,
+      executeSafeTransaction,
+      isSafeDeployed,
+      refetchSafeQueries,
+      safe4337Pack,
+      toast,
+    ]
   );
 
   const resetSafe = useCallback(() => {

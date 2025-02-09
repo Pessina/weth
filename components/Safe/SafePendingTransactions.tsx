@@ -15,7 +15,6 @@ type SafeMultisigTransactionProps = {
 export const SafePendingTransactions: React.FC<SafeMultisigTransactionProps> = ({
     pendingTransactions,
     signSafeProposal,
-    // createSafeProposal,
     executeSafeProposal
 }) => {
 
@@ -44,45 +43,65 @@ export const SafePendingTransactions: React.FC<SafeMultisigTransactionProps> = (
     };
 
     return (
-        <div className="space-y-4">
-            <h2 className="text-lg font-semibold">Pending Transactions</h2>
-            {pendingTransactions.results.map((tx) => {
-                const hasEnoughConfirmations = (tx.confirmations?.length ?? 0) >= tx.confirmationsRequired;
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <h2 className="text-2xl font-bold tracking-tight">Pending Transactions</h2>
+                <p className="text-sm text-muted-foreground">
+                    {pendingTransactions.results.length} transaction{pendingTransactions.results.length !== 1 ? 's' : ''} pending
+                </p>
+            </div>
 
-                return (
-                    <Card key={tx.safeTxHash} className="p-4">
-                        <div className="flex items-center justify-between">
-                            <div className="space-y-1">
-                                <p className="text-sm font-medium">To: {tx.to}</p>
-                                <p className="text-sm text-muted-foreground">
-                                    Value: {tx.value} ETH
-                                </p>
-                                <p className="text-sm text-muted-foreground">
-                                    Confirmations: {tx.confirmations?.length ?? 0} /{" "}
-                                    {tx.confirmationsRequired}
-                                </p>
-                            </div>
-                            <div className="space-x-2">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => handleSign(tx)}
-                                    disabled={hasEnoughConfirmations}
-                                >
-                                    Sign Transaction
-                                </Button>
-                                {hasEnoughConfirmations && (
+            <div className="grid gap-4">
+                {pendingTransactions.results.map((tx) => {
+                    const hasEnoughConfirmations = (tx.confirmations?.length ?? 0) >= tx.confirmationsRequired;
+
+                    return (
+                        <Card key={tx.safeTxHash} className="p-6">
+                            <div className="space-y-4">
+                                <div className="flex items-start justify-between">
+                                    <div className="space-y-1">
+                                        <h3 className="font-medium">Transaction Details</h3>
+                                        <div className="flex items-center space-x-2 text-sm">
+                                            <span className="text-muted-foreground">To:</span>
+                                            <code className="rounded bg-muted px-2 py-1">{tx.to}</code>
+                                        </div>
+                                        <p className="text-sm">
+                                            <span className="text-muted-foreground">Value:</span>{" "}
+                                            <span className="font-medium">{tx.value} ETH</span>
+                                        </p>
+                                    </div>
+
+                                    <div className="flex flex-col items-end space-y-2">
+                                        <div className="text-sm text-muted-foreground text-right">
+                                            Confirmations: {tx.confirmations?.length ?? 0}/{tx.confirmationsRequired}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex justify-end space-x-3">
                                     <Button
-                                        variant="default"
-                                        onClick={() => handleExecute(tx)}
+                                        variant="outline"
+                                        onClick={() => handleSign(tx)}
+                                        disabled={hasEnoughConfirmations}
+                                        className="w-36"
                                     >
-                                        Execute
+                                        {hasEnoughConfirmations ? 'Fully Signed' : 'Sign Transaction'}
                                     </Button>
-                                )}
+                                    {hasEnoughConfirmations && (
+                                        <Button
+                                            variant="default"
+                                            onClick={() => handleExecute(tx)}
+                                            className="w-36"
+                                        >
+                                            Execute
+                                        </Button>
+                                    )}
+                                </div>
                             </div>
-                        </div>
-                    </Card>
-                );
-            })}
+                        </Card>
+                    );
+                })}
+            </div>
         </div>
     );
 }

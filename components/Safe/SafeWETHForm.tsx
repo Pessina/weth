@@ -68,19 +68,6 @@ export function SafeWETHForm() {
         // TODO: Refetch queries here or inside the initiateSafeTransaction hook
     }
 
-    // const { data: txConfirmations } = useQuery({
-    //     queryKey: ["txConfirmations", onGoingSafeOperationHash],
-    //     queryFn: () => {
-    //         if (!onGoingSafeOperationHash) return 0;
-
-    //         return getTxConfirmations({ safeTxHash: onGoingSafeOperationHash })
-    //     },
-    //     enabled: !!onGoingSafeOperationHash,
-    //     refetchInterval: 1000,
-    // });
-
-    // console.log(txConfirmations);
-
     if (!safeAddress) {
         return <SafeInitForm isLoading={isLoading} initSafe={initSafe} />
     }
