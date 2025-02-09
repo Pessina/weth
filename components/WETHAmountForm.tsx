@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { parseEther } from "viem"
+import { ArrowDownUp, Loader2 } from "lucide-react"
 
 const wethFormSchema = z.object({
     amount: z.string().min(1, "Amount is required")
@@ -51,7 +52,7 @@ export function WETHAmountForm({ isLoading, onWrap, onUnwrap }: WETHAmountFormPr
 
     return (
         <Form {...form}>
-            <form className="space-y-4">
+            <form className="space-y-6">
                 <FormField
                     control={form.control}
                     name="amount"
@@ -59,34 +60,59 @@ export function WETHAmountForm({ isLoading, onWrap, onUnwrap }: WETHAmountFormPr
                         <FormItem>
                             <FormLabel>Amount</FormLabel>
                             <FormControl>
-                                <Input
-                                    placeholder="0.0"
-                                    {...field}
-                                    className="font-mono"
-                                />
+                                <div className="relative">
+                                    <Input
+                                        placeholder="0.0"
+                                        {...field}
+                                        className="font-mono pl-8"
+                                    />
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">
+                                        Ξ
+                                    </span>
+                                </div>
                             </FormControl>
                             <FormMessage />
                         </FormItem>
                     )}
                 />
-                <div className="flex gap-4">
+                <div className="grid grid-cols-2 gap-4">
                     <Button
                         type="button"
-                        className="flex-1"
                         disabled={isLoading}
                         onClick={form.handleSubmit(handleWrap)}
                         variant="default"
+                        className="w-full"
                     >
-                        {isLoading ? "Processing..." : "Wrap ETH"}
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Wrapping...
+                            </>
+                        ) : (
+                            <>
+                                <ArrowDownUp className="mr-2 h-4 w-4" />
+                                Wrap ETH
+                            </>
+                        )}
                     </Button>
                     <Button
                         type="button"
-                        className="flex-1"
                         disabled={isLoading}
                         onClick={form.handleSubmit(handleUnwrap)}
                         variant="outline"
+                        className="w-full"
                     >
-                        {isLoading ? "Processing..." : "Unwrap WETH"}
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Unwrapping...
+                            </>
+                        ) : (
+                            <>
+                                <ArrowDownUp className="mr-2 h-4 w-4" />
+                                Unwrap WETH
+                            </>
+                        )}
                     </Button>
                 </div>
             </form>

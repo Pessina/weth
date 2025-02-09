@@ -8,7 +8,7 @@ import { useCallback, useState } from "react";
 import { Hex } from "viem";
 import { wethABI } from "./wethABI";
 import { contractAddresses } from "@/constants/addresses";
-import { useToast } from "@/hooks/use-toast";
+import { useWithError } from "@/hooks/useWithError";
 
 const contractConfig = {
   abi: wethABI,
@@ -38,7 +38,7 @@ export function useWETHContract({
   refreshQueries,
 }: UseWETHContractProps) {
   const publicClient = usePublicClient();
-  const { toast } = useToast();
+  const { withError } = useWithError();
   const [isWriting, setIsWriting] = useState(false);
 
   const {
@@ -49,6 +49,9 @@ export function useWETHContract({
     ...contractConfig,
     functionName: "balanceOf",
     args: [address],
+    query: {
+      refetchInterval: 1000,
+    },
   });
 
   const refresh = useCallback(async () => {
@@ -62,30 +65,26 @@ export function useWETHContract({
     async (action: WETHAction) => {
       setIsWriting(true);
       try {
-        const hash = await writeContract({
-          ...contractConfig,
-          ...action.writeContractArgs,
-        });
-        await publicClient?.waitForTransactionReceipt({ hash });
-        await refresh();
-        toast({
-          title: `${action.writeContractArgs.functionName} Successful`,
-          description: action.messages.successMessage,
-        });
-        return hash;
-      } catch (error) {
-        toast({
-          variant: "destructive",
-          title: action.messages.errorTitle,
-          description:
-            error instanceof Error ? error.message : "Unknown error occurred",
-        });
-        throw error;
+        return await withError(
+          async () => {
+            const hash = await writeContract({
+              ...contractConfig,
+              ...action.writeContractArgs,
+            });
+            await publicClient?.waitForTransactionReceipt({ hash });
+            await refresh();
+            return hash;
+          },
+          {
+            successMessage: action.messages.successMessage,
+            errorMessage: action.messages.errorTitle,
+          }
+        );
       } finally {
         setIsWriting(false);
       }
     },
-    [writeContract, refresh, publicClient, toast]
+    [writeContract, refresh, publicClient, withError]
   );
 
   const deposit = useCallback(

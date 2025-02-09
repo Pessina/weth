@@ -15,11 +15,12 @@ import { Input } from "@/components/ui/input"
 import { useAccount } from "wagmi"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { InitSafeFn } from "@/hooks/useSafe"
-
+import { AlertCircle, Loader2, Users } from "lucide-react"
 
 const safeFormSchema = z.object({
     owners: z.string().min(1, "At least one owner address is required"),
-    threshold: z.number().min(1, "Threshold must be at least 1")
+    threshold: z.number().min(1, "Threshold must be at least 1"),
+    saltNonce: z.string().min(1, "Salt nonce is required")
 })
 
 interface SafeInitFormProps {
@@ -34,6 +35,7 @@ export function SafeInitForm({ isLoading, initSafe }: SafeInitFormProps) {
         defaultValues: {
             owners: address ?? "",
             threshold: 1,
+            saltNonce: "1"
         },
     })
 
@@ -43,7 +45,8 @@ export function SafeInitForm({ isLoading, initSafe }: SafeInitFormProps) {
             await initSafe({
                 options: {
                     owners,
-                    threshold: values.threshold
+                    threshold: values.threshold,
+                    saltNonce: values.saltNonce
                 }
             })
         } catch (error) {
@@ -52,14 +55,15 @@ export function SafeInitForm({ isLoading, initSafe }: SafeInitFormProps) {
     }
 
     return (
-        <div className="space-y-4 pt-4">
-            <Alert variant="default">
-                <AlertDescription>
+        <div className="space-y-6 pt-4">
+            <Alert variant="default" className="border-blue-200 bg-blue-50/50">
+                <AlertCircle className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-blue-600">
                     You need to initialize a Safe account first
                 </AlertDescription>
             </Alert>
             <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
                     <FormField
                         control={form.control}
                         name="owners"
@@ -67,13 +71,16 @@ export function SafeInitForm({ isLoading, initSafe }: SafeInitFormProps) {
                             <FormItem>
                                 <FormLabel>Owner Addresses</FormLabel>
                                 <FormControl>
-                                    <Input
-                                        placeholder="0x123..., 0x456..."
-                                        {...field}
-                                        className="font-mono"
-                                    />
+                                    <div className="relative">
+                                        <Input
+                                            placeholder="0x123..., 0x456..."
+                                            {...field}
+                                            className="font-mono pl-9"
+                                        />
+                                        <Users className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                                    </div>
                                 </FormControl>
-                                <FormDescription>
+                                <FormDescription className="text-xs">
                                     Enter comma-separated list of owner addresses
                                 </FormDescription>
                                 <FormMessage />
@@ -92,10 +99,31 @@ export function SafeInitForm({ isLoading, initSafe }: SafeInitFormProps) {
                                         min={1}
                                         {...field}
                                         onChange={e => field.onChange(parseInt(e.target.value))}
+                                        className="font-mono"
                                     />
                                 </FormControl>
-                                <FormDescription>
+                                <FormDescription className="text-xs">
                                     Number of owners required to confirm transactions
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="saltNonce"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Salt Nonce</FormLabel>
+                                <FormControl>
+                                    <Input
+                                        type="text"
+                                        {...field}
+                                        className="font-mono"
+                                    />
+                                </FormControl>
+                                <FormDescription className="text-xs">
+                                    Unique identifier for Safe deployment
                                 </FormDescription>
                                 <FormMessage />
                             </FormItem>
@@ -107,10 +135,17 @@ export function SafeInitForm({ isLoading, initSafe }: SafeInitFormProps) {
                         disabled={isLoading}
                         variant="default"
                     >
-                        {isLoading ? "Initializing..." : "Initialize Safe"}
+                        {isLoading ? (
+                            <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Initializing...
+                            </>
+                        ) : (
+                            "Initialize Safe"
+                        )}
                     </Button>
                 </form>
             </Form>
         </div>
     )
-} 
+}

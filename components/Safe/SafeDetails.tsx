@@ -4,16 +4,31 @@ import { useWETHContract } from "@/contracts/weth/useWETHContract";
 import { Balance } from "@/components/Balance";
 import { useCallback } from "react";
 import { Button } from "../ui/button";
+import { ExternalLink, LogOut } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
+// TODO: This can be likely used from useSafe as now it's connected with Zustand
 type SafeDetailsProps = {
     ethBalance: bigint;
     safeAddress: string;
     isSafeDeployed: boolean;
+    isAddressLoading: boolean;
+    isDeploymentStatusLoading: boolean;
+    isBalanceLoading: boolean;
     getSafeExplorerLink: (address: string) => string;
     disconnect: () => void;
 }
 
-export const SafeDetails: React.FC<SafeDetailsProps> = ({ ethBalance, safeAddress, isSafeDeployed, getSafeExplorerLink, disconnect }) => {
+export const SafeDetails: React.FC<SafeDetailsProps> = ({
+    ethBalance,
+    safeAddress,
+    isSafeDeployed,
+    isAddressLoading,
+    isDeploymentStatusLoading,
+    isBalanceLoading,
+    getSafeExplorerLink,
+    disconnect
+}) => {
     const refreshQueries = useCallback(async () => {
         // TODO
     }, []);
@@ -24,43 +39,51 @@ export const SafeDetails: React.FC<SafeDetailsProps> = ({ ethBalance, safeAddres
     });
 
     return (
-        <div className="rounded-lg border p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-                <div className="space-y-1">
-                    <h3 className="font-medium">Safe Account</h3>
-                    <div className="flex items-center gap-2">
-                        <Link
-                            href={getSafeExplorerLink(safeAddress)}
-                            target="_blank"
-                            className="text-blue-500 hover:underline text-sm"
-                        >
-                            {splitAddress(safeAddress)}
-                        </Link>
-                        {!isSafeDeployed && (
-                            <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full">
-                                Not Deployed
-                            </span>
-                        )}
+        <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
+            <div className="p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                    <div className="space-y-1 grow">
+                        <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-semibold">Safe Account</h3>
+                            {isDeploymentStatusLoading ? (
+                                <Skeleton className="h-6 w-24" />
+                            ) : !isSafeDeployed && (
+                                <span className="inline-flex items-center rounded-full bg-yellow-50 px-2 py-1 text-xs font-medium text-yellow-800 ring-1 ring-inset ring-yellow-600/20">
+                                    Not Deployed
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2 justify-between">
+                            {isAddressLoading ? (
+                                <Skeleton className="h-6 w-32" />
+                            ) : (
+                                <Link
+                                    href={getSafeExplorerLink(safeAddress)}
+                                    target="_blank"
+                                    className="inline-flex items-center gap-1.5 text-sm text-blue-500 hover:text-blue-600 font-mono"
+                                >
+                                    {splitAddress(safeAddress)}
+                                    <ExternalLink className="h-3.5 w-3.5" />
+                                </Link>
+                            )}
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={disconnect}
+                                className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                disabled={isAddressLoading || isDeploymentStatusLoading}
+                            >
+                                <LogOut className="h-4 w-4 mr-2" />
+                                Disconnect
+                            </Button>
+                        </div>
                     </div>
                 </div>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={disconnect}
-                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                >
-                    Disconnect
-                </Button>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 bg-gray-50 rounded-md">
-                    {/* TODO: update this to use the isLoading prop */}
-                    <Balance isLoading={false} balance={ethBalance} label="ETH" />
-                </div>
-                <div className="p-3 bg-gray-50 rounded-md">
+                <div>
+                    <Balance isLoading={isBalanceLoading} balance={ethBalance} label="ETH" />
                     <Balance isLoading={isWETHBalanceLoading} balance={wethBalance ?? 0n} label="WETH" />
                 </div>
             </div>
         </div>
     );
-}
+};
